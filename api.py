@@ -1,3 +1,6 @@
+import logging
+
+import dotenv
 import torch
 import numpy as np
 import re
@@ -9,6 +12,28 @@ import librosa
 from text import text_to_sequence
 from mel_processing import spectrogram_torch
 from models import SynthesizerTrn
+from azure.cognitiveservices import speech as speechsdk
+
+
+formatter = '%(asctime)s - %(funcName)s - %(filename)s - %(levelname)s - %(message)s'
+
+
+def get_logger(logger_name):
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.DEBUG)
+
+    # create console handler and set level to debug
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG)
+    ch_format = logging.Formatter(formatter)
+    console_handler.setFormatter(ch_format)
+
+    logger.addHandler(console_handler)
+
+    return logger
+
+
+logger = get_logger(__name__)
 
 
 class OpenVoiceBaseClass(object):
@@ -96,6 +121,39 @@ class BaseSpeakerTTS(OpenVoiceBaseClass):
             return audio
         else:
             soundfile.write(output_path, audio, self.hps.data.sampling_rate)
+
+
+dotenv.load_dotenv()
+AZURE_SPEECH_KEY = os.getenv('AZURE_SPEECH_KEY')
+AZURE_SPEECH_REGION = os.getenv('AZURE_SPEECH_REGION') if os.getenv('AZURE_SPEECH_REGION') else 'southeastasia'
+print(AZURE_SPEECH_KEY, AZURE_SPEECH_REGION)
+
+
+class AzureTTS():
+    def __init__(self):
+        pass
+
+    def tts(self, text, output_path, speaker, language='English', speed=1.0):
+        logger.info('Azure TTS: generate_audio()')
+        speech_config = speechsdk.SpeechConfig(subscription=AZURE_SPEECH_KEY, region=AZURE_SPEECH_REGION)
+        # The language of the voice that speaks.
+        # speech_config.speech_synthesis_voice_name = speaker
+        speech_config.speech_synthesis_voice_name = 'en-US-JennyNeural' if language.lower() == 'english' else 'zh-CN-YunyeNeural'
+
+        audio_config = speechsdk.audio.AudioOutputConfig(filename=output_path)
+        speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
+        speech_synthesis_result = speech_synthesizer.speak_text_async(text).get()
+
+        if speech_synthesis_result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+            logger.info(
+                f"Speech synthesized to speaker for text [{text}], outputfile: {output_path}, duration: {speech_synthesis_result.audio_duration}")
+            # return bytes(speech_synthesis_result.audio_data)
+        elif speech_synthesis_result.reason == speechsdk.ResultReason.Canceled:
+            cancellation_details = speech_synthesis_result.cancellation_details
+            logger.error(f"Speech synthesis canceled: {cancellation_details.reason}")
+            if cancellation_details.reason == speechsdk.CancellationReason.Error:
+                if cancellation_details.error_details:
+                    logger.error(f"Error details: {cancellation_details.error_details}")
 
 
 class ToneColorConverter(OpenVoiceBaseClass):

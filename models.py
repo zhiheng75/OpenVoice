@@ -101,7 +101,7 @@ class DurationPredictor(nn.Module):
 
 
 class StochasticDurationPredictor(nn.Module):
-     def __init__(self, in_channels, filter_channels, kernel_size, p_dropout, n_flows=4, gin_channels=0):
+    def __init__(self, in_channels, filter_channels, kernel_size, p_dropout, n_flows=4, gin_channels=0):
         super().__init__()
         filter_channels = in_channels  # it needs to be removed from future version.
         self.in_channels = in_channels
